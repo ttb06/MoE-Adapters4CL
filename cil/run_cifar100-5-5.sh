@@ -1,4 +1,4 @@
-#!bin/bash
+#bin/bash
 
 # for imagenet-100 dataset; 10 classes/task
 CUDA_VISIBLE_DEVICES=0 python main.py \

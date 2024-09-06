@@ -1,4 +1,4 @@
-#!bin/bash
+#bin/bash
 
 # for imagenet-100 dataset; 10 classes/task
 python main.py \
