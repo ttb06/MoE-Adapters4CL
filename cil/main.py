@@ -26,7 +26,7 @@ def continual_clip(cfg: DictConfig) -> None:
     utils.save_config(cfg)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cfg.class_order = utils.get_class_order(os.path.join(cfg.workdir, cfg.class_order))
-    model  = load_model(cfg, device)
+    model = load_model(cfg, device)
 
     eval_dataset, classes_names = build_cl_scenarios(
         cfg, is_train=False, transforms=model.transforms
@@ -50,7 +50,7 @@ def continual_clip(cfg: DictConfig) -> None:
         # breakpoint()
         logging.info(f"Evaluation for task {task_id} has started.")
         # breakpoint()
-        model.adaptation(task_id, cfg, train_dataset, train_classes_names)  # task id 已经传入model
+        model.adaptation(task_id, cfg, train_dataset, train_classes_names)  # task id 已经传入(Already passed in)model
 
         eval_loader = DataLoader(eval_dataset[:task_id + 1], batch_size=64)
         # breakpoint()

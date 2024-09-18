@@ -1,7 +1,7 @@
 #bin/bash
 
-# for imagenet-100 dataset; 10 classes/task
-python main.py \
+# for imagenet-100 dataset; 20 classes/task; in 5 step
+python3 main.py \
     --config-path configs/class \
     --config-name tinyimagenet_100-20.yaml \
     dataset_root="../datasets/" \
