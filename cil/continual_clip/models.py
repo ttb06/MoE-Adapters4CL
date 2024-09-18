@@ -54,7 +54,7 @@ class ClassIncremental(nn.Module):
                                   batch_size=cfg.batch_size,
                                   shuffle=True, num_workers=8)
 
-        train_iter = iter(train_loader)  # 获取每个step的数据集
+        train_iter = iter(train_loader)  # 获取每个step的数据集 Lấy tập dữ liệu cho từng bước
         # print('cfg.batch_size',cfg.batch_size)
 
 
@@ -65,8 +65,8 @@ class ClassIncremental(nn.Module):
         ### whole-model
         exclude_params_name = ["logit_scale"]
 
-        # 冻结参数
-        for k, v in self.model.named_parameters():  # 冻结其他参数
+        # 冻结参数 đóng băng parameters
+        for k, v in self.model.named_parameters():  # 冻结其他参数 cố định các tham so khác
             if "adaptmlp" not in k and "router" not in k and "noise" not in k:
                 v.requires_grad = False
 
@@ -88,7 +88,7 @@ class ClassIncremental(nn.Module):
         )
 
         # move model to device
-        self.model = self.model.cuda()
+        # self.model = self.model.cuda()
         devices = list(range(torch.cuda.device_count()))
         # print("Using devices", devices)
 
@@ -121,7 +121,7 @@ class ClassIncremental(nn.Module):
                 shift = task_id * cfg.increment
                 targets -= shift
 
-            inputs, targets = inputs.cuda(), targets.cuda()
+            # inputs, targets = inputs.cuda(), targets.cuda()
 
             logits_per_image, _ = self.model(inputs, texts, 0, is_train=True)  # 分开
             # -- cross entropy loss --

@@ -13,6 +13,8 @@ from collections import Counter
 
 global_taskid = 0
 global_is_train=True
+cnttext = 0
+cntimg = 0
 class SparseDispatcher(object):
     """Helper for implementing a mixture of experts.
     The purpose of this class is to create input minibatches for the
@@ -111,6 +113,7 @@ class SparseDispatcher(object):
           a list of `num_experts` one-dimensional `Tensor`s with type `tf.float32`
               and shapes `[expert_batch_size_i]`
         """
+        print("nonzero gates: ", self._nonzero_gates)
         # split nonzero gates for each expert
         return torch.split(self._nonzero_gates, self._part_sizes, dim=0)
 
@@ -296,17 +299,23 @@ class ResidualAttentionBlock(nn.Module):
         self.adaptmlp_list = nn.ModuleList()
         self.text_or_image = text_or_image
         if text_or_image == 'text':
-            print('text transformer')
+            global cnttext
+            cnttext += 1
+            print('text transformer', cnttext)
             self.choose_map_text = torch.zeros([ self.experts_num])
+            print()
         else:
-            print('image transformer')
+            global cntimg
+            cntimg += 1
+            print('image transformer', cntimg)
             self.choose_map_image = torch.zeros([ self.experts_num])
         self.router_list = nn.ParameterList()
         self.w_noise_list = nn.ParameterList()
         for i in range(self.step):
             self.router_list.append(nn.Parameter(torch.zeros(d_model, self.experts_num), requires_grad=True))
             self.w_noise_list.append(nn.Parameter(torch.zeros(d_model, self.experts_num), requires_grad=True))
-        for i in range(self.experts_num):  #
+        print(self.w_noise_list)
+        for i in range(self.experts_num):  # thêm các experts vào với cấu trúc lora
             self.adaptmlp = Adapter(d_model=d_model, dropout=0.1, bottleneck=self.ffn_num,
                                     init_option='lora',
                                     adapter_scalar=0.1,
@@ -645,7 +654,7 @@ class CLIP(nn.Module):
         logits_per_image = logit_scale * image_features @ text_features.t()
         logits_per_text = logits_per_image.t()
         return logits_per_image, logits_per_text
-        
+
 
 
 def convert_weights(model: nn.Module):

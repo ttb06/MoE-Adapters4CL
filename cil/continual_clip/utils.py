@@ -199,6 +199,7 @@ def virtual_vocab(length=10, n_class=1000):
     zeros = torch.zeros((n_class, 75 - length), dtype=torch.long)
 
     texts = torch.cat([start, texts, end, zeros], dim=1)
+    print(texts)
     return texts
     
 def distillation(t, s, T=2):
