@@ -1,0 +1,5 @@
+*/__pycache__/*
+/idea/
+/datasets/
+/cil/class_orders/
+/cil/experiments/
