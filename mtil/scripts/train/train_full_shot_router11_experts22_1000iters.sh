@@ -21,7 +21,7 @@ model_ckpt_path=ckpt/exp_${exp_no}
 
 # train chooser of DDAS
 j=0
-CUDA_VISIBLE_DEVICES=${GPU} python -m src.main \
+CUDA_VISIBLE_DEVICES=${GPU} python3 -m src.main \
     --train-mode=adapter \
     --train-dataset=${chooser_dataset[j]} \
     --iterations 1000 \
