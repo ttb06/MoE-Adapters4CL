@@ -592,10 +592,10 @@ class TinyImagenet(ClassificationDataset):
         super().__init__(*args, **kwargs)
         self.name = "TinyImageNet"
         self.train_dataset = TinyImageNet_dataset(
-            self.location+'/tiny-imagenet-200', train=True, transform=self.preprocess
+            self.location+'/tinyimagenet200/tiny-imagenet-200', train=True, transform=self.preprocess
         )
         self.test_dataset = TinyImageNet_dataset(
-            self.location+'/tiny-imagenet-200', train=False, transform=self.preprocess
+            self.location+'/tinyimagenet200/tiny-imagenet-200', train=False, transform=self.preprocess
         )
         self.build_dataloader()
 
