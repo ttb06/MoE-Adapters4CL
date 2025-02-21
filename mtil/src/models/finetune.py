@@ -127,7 +127,10 @@ def finetune(args):
     )
 
     # move model to device
-    model = model.cuda()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Using device", device)
+    model = model.to(device)
+    # model = model.cuda()
     logit_scale = model.logit_scale
     devices = list(range(torch.cuda.device_count()))
     print("Using devices", devices)
