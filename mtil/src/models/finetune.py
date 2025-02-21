@@ -111,7 +111,7 @@ def finetune(args):
             params_name = [
                 k for k, v in model.named_parameters() if "adaptmlp" in k or "router" in k or "noise" in k
             ]
-        print('========trainable params============', params_name)
+        # print('========trainable params============', params_name)
 
     # print trainable params's information
     total_params_size = sum(p.numel() * p.element_size() for p in model.parameters() if p.requires_grad)
@@ -137,6 +137,11 @@ def finetune(args):
     texts = [template(x) for x in dataset.classnames]
     texts = clip.tokenize(texts).cuda()
 
+    if args.get("load", None) is not None:
+        # save old adapter states
+        old_adapter_states = {name: param.data.clone() for name, param in model.named_parameters() if "adaptmlp" in name}
+        args.old_adapter_states = old_adapter_states
+    
     for iteration in tqdm(range(total_iterations + 1)):
         if eval_iterations is not None and iteration % eval_iterations == 0:
             evaluate(model.module, args, val_preprocess)
@@ -190,6 +195,59 @@ def finetune(args):
         if iteration % loss_interval == 0:
             print("Loss:", loss.item())
 
+
+    if args.get("load", None) is not None:
+        # --------------- Fisher-based Update ---------------
+        # Get Fisher information matrix
+        fisher_accum = {}
+        adapter_keyword = "adaptmlp" 
+        # model.train()
+        num_fisher_batches = 0
+        for i, (images, labels) in enumerate(dataset.train_loader):
+            # if i >= 10:
+            #     break
+            images, labels = images.cuda(), labels.cuda()
+            logits = model(images, None)['logits']
+            loss_f = F.cross_entropy(logits, labels)
+            model.zero_grad()
+            loss_f.backward()
+            for name, param in model.named_parameters():
+                if adapter_keyword in name and param.grad is not None:
+                    if name not in fisher_accum:
+                        fisher_accum[name] = torch.zeros_like(param.data)
+                    fisher_accum[name] += param.grad.pow(2).detach()
+            num_fisher_batches += 1
+        for name in fisher_accum:
+            fisher_accum[name] /= num_fisher_batches
+            fisher_accum[name] = torch.clamp(fisher_accum[name], max=0.0001)
+        
+        # args.old_adapter_states
+        # if hasattr(args, "old_adapter_states"):
+        # lambda_val = getattr(args, "lambda_val", 1.0)
+
+        lambda_val = 0.5
+        for name, param in model.named_parameters():
+            if adapter_keyword in name and param.grad is not None:
+                if name in args.old_adapter_states and name in fisher_accum:
+                    theta_old = args.old_adapter_states[name]
+                    theta_new = param.data
+                    F_val = fisher_accum[name]
+                    updated = (lambda_val * F_val * theta_old + theta_new) / (lambda_val * F_val + 1 + 1e-8)
+                    param.data.copy_(updated)
+        print("FIM Updated")
+        # else:
+        #     print("Skipping Fisher update.")
+        #-------------------------------------------
+
+    # ----------------- Sau khi kết thúc quá trình training và cập nhật trọng số -----------------
+    print("Hoàn tất huấn luyện và cập nhật trọng số. Đang tiến hành đánh giá mô hình...")
+
+    # # Đưa mô hình về chế độ đánh giá
+    # model.eval()
+
+    # # Thực hiện đánh giá trên tập validation
+    # final_test_acc = evaluate(model.module, args, val_preprocess)
+    # print("LOSS AFTER USING COFIMA UPDATING: {:.2f}%".format(final_test_acc * 100))
 
     # save experts' frequency of activation
     with open(frozen_path, "a") as file:
