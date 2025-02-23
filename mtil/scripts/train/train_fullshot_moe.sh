@@ -5,7 +5,7 @@ set -e
 set -x
 # 1.frozen_path 2. exp_no
 exp_no=withFrozen_22experts_1000epoch_11
-GPU=1,2
+GPU=0,1
 chooser_dataset=(TinyImagenet Aircraft Caltech101 CIFAR100 DTD EuroSAT Flowers Food MNIST OxfordPet StanfordCars SUN397)
 dataset=(Aircraft Caltech101 CIFAR100 DTD EuroSAT Flowers Food MNIST OxfordPet StanfordCars SUN397)
 lr=(5e-3 1e-3 5e-3 1e-3 1e-4 1e-3 1e-3 1e-4 1e-3 1e-3 1e-3)
