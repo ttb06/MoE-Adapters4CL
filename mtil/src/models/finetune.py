@@ -200,6 +200,7 @@ def finetune(args):
 
 
     if args.get("load", None) is not None:
+        print("-------- Updating CoFiMA with dataset:", args.train_dataset, "--------")
         # --------------- Fisher-based Update ---------------
         # Get Fisher information matrix
         fisher_accum = {}
@@ -237,7 +238,7 @@ def finetune(args):
                     F_val = fisher_accum[name]
                     updated = (lambda_val * F_val * theta_old + theta_new) / (lambda_val * F_val + 1 + 1e-8)
                     param.data.copy_(updated)
-        print("FIM Updated")
+        print("-------- FIM Updated --------")
         # else:
         #     print("Skipping Fisher update.")
         #-------------------------------------------
