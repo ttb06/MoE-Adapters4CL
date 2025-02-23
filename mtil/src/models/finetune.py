@@ -13,6 +13,10 @@ from .helpers import get_datasets_text, merge_we, wise_we, moving_avg, l2_loss, 
 
 def finetune(args):
     # print('---1---',args.frozen_path)
+    if args.load is not None:
+        print("Load parameter:", args.load)
+    else:
+        print("Load parameter: None")
     frozen_path = args.frozen_path
     model, train_preprocess, val_preprocess = clip.load(args.model, jit=False, args=args)  # model='ViT-B/16'
     #  train_preprocess is_train=True val_preprocess is_train=False
@@ -140,7 +144,7 @@ def finetune(args):
     texts = [template(x) for x in dataset.classnames]
     texts = clip.tokenize(texts).cuda()
 
-    if args.get("load", None) is not None:
+    if args.load is not None:
         # save old adapter states
         old_adapter_states = {name: param.data.clone() for name, param in model.named_parameters() if "adaptmlp" in name}
         args.old_adapter_states = old_adapter_states
@@ -199,7 +203,7 @@ def finetune(args):
             print("Loss:", loss.item())
 
 
-    if args.get("load", None) is not None:
+    if args.load is not None:
         print("-------- Updating CoFiMA with dataset:", args.train_dataset, "--------")
         # --------------- Fisher-based Update ---------------
         # Get Fisher information matrix
