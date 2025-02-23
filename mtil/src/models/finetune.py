@@ -212,11 +212,26 @@ def finetune(args):
         # model.train()
         num_fisher_batches = 0
         for i, (images, labels) in enumerate(dataset.train_loader):
-            # if i >= 10:
-            #     break
-            images, labels = images.cuda(), labels.cuda()
-            logits = model(images, None)['logits']
-            loss_f = F.cross_entropy(logits, labels)
+            # use 100 epochs to estimate Fisher
+            if i >= 100:
+                break
+
+            # images, labels = images.cuda(), labels.cuda()
+            # logits = model(images, None)['logits']
+            # loss_f = F.cross_entropy(logits, labels)
+            
+            # using old Loss func
+            if args.train_mode != "text":
+                embeddings = model(None, texts)
+                embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
+
+            # -- get image embedding --
+            out = model(images, None)
+            out = out / out.norm(dim=-1, keepdim=True)
+            # -- cross entropy loss --
+            logits_per_image = logit_scale.exp() * out @ embeddings.t()
+            loss_f = F.cross_entropy(logits_per_image, labels, label_smoothing=args.ls)
+
             model.zero_grad()
             loss_f.backward()
             for name, param in model.named_parameters():
