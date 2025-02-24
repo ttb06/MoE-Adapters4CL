@@ -150,6 +150,8 @@ def finetune(args):
         args.old_adapter_states = old_adapter_states
     
     for iteration in tqdm(range(total_iterations + 1)):
+        # if (iteration > 10):
+        #     break;
         if eval_iterations is not None and iteration % eval_iterations == 0:
             evaluate(model.module, args, val_preprocess)
 
@@ -211,12 +213,12 @@ def finetune(args):
         adapter_keyword = "adaptmlp" 
         # model.train()
         num_fisher_batches = 0
-        for i, (images, labels) in enumerate(dataset.train_loader):
+        for i, (images, labels) in tqdm(enumerate(dataset.train_loader)):
             # use 100 epochs to estimate Fisher
-            if i >= 100:
-                break
+            # if i >= 100:
+            #     break
 
-            # images, labels = images.cuda(), labels.cuda()
+            images, labels = images.cuda(), labels.cuda()
             # logits = model(images, None)['logits']
             # loss_f = F.cross_entropy(logits, labels)
             
