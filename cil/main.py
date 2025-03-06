@@ -45,13 +45,18 @@ def continual_clip(cfg: DictConfig) -> None:
     acc_list = []
     metric_logger = Logger(list_subsets=["test"])
 
+    old_fisher = None
     # test
     for task_id, _ in enumerate(eval_dataset):
         # breakpoint()
         logging.info(f"Evaluation for task {task_id} has started.")
         # breakpoint()
-        model.adaptation(task_id, cfg, train_dataset, train_classes_names)  # task id 已经传入(Already passed in)model
-
+        if (task_id > 0):
+            old_fisher = model.adaptation(task_id, cfg, train_dataset, train_classes_names, old_fisher)  # task id 已经传入(Already passed in)model
+        else:
+            old_fisher = model.adaptation(task_id, cfg, train_dataset, train_classes_names)
+        if (old_fisher is not None):
+            print('old_fisher in task', task_id,'is not None')
         eval_loader = DataLoader(eval_dataset[:task_id + 1], batch_size=64)
         # breakpoint()
         for inputs, targets, task_ids in tqdm(eval_loader):
@@ -60,6 +65,9 @@ def continual_clip(cfg: DictConfig) -> None:
             metric_logger.add([outputs.cpu().argmax(dim=1), targets.cpu(), task_ids], subset="test")
 
         acc_list.append(100 * metric_logger.accuracy)
+        print(f"Task {task_id} accuracy: {100 * metric_logger.accuracy:.2f} %, forgetting: {100 * metric_logger.forgetting}")
+        print(f"Acc per task: {[round(100 * acc_t, 2) for acc_t in metric_logger.accuracy_per_task]}")
+        
         with open(cfg.log_path, 'a+') as f:
             f.write(json.dumps({
                 'task': task_id,
