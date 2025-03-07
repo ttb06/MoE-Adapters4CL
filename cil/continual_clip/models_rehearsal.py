@@ -12,6 +12,76 @@ import clip.clip as clip
 from .models import ClassIncremental
 from .utils import get_class_names, cosine_lr
 
+class MRFA_Augmentation:
+    """
+    Implementation of memory augmentation based on MRFA approach.
+    """
+    def __init__(self):
+        self.remove_handles = []
+        self.perturbation_idices = []
+        self.perturbation_idices_inbatch = []
+        self.perturbation_layers = []
+        self.perturbation_factor = []
+        self.features = {}
+        self.perturbation_layers_names = []
+        
+    def _init_inbatch_properties(self):
+        """Reset perturbation indices for new batch."""
+        self.perturbation_idices = []
+        self.perturbation_idices_inbatch = []
+        self.perturbation_layers = []
+        self.perturbation_factor = []
+    
+    def _hook_fn(self, name):
+        """Create a forward hook function to capture intermediate features."""
+        def hook(module, input, output):
+            if len(self.perturbation_idices) > 0:
+                self.features[name] = output
+            return output
+        return hook
+    
+    def register_perturb_forward_prehook(self, model, model_type='vitb32'):
+        """Register hooks on vision transformer blocks."""
+        if model_type.startswith('ViT'):
+            print("Registering hooks for perturbation...")
+            # For ViT models in CLIP
+            for name, module in model.named_modules():
+                if 'visual.transformer.resblocks' in name and 'attn' not in name and 'ln_' not in name:
+                    self.perturbation_layers_names.append(name)
+                    handle = module.register_forward_hook(self._hook_fn(name))
+                    self.remove_handles.append(handle)
+        
+    def feature_augmentation(self, model, inputs, targets, model_type, perturb_p=None):
+        """Apply feature augmentation to memory samples."""
+        if perturb_p is None:
+            # Default perturbation probability for different layers
+            perturb_p = np.array([0.0001, 0.0001, 0.0001, 0.0001, 0.0001])
+        
+        # perturb_p = np.array(perturb_p)
+        perturb_p = np.array([0.0001] * 26500)
+
+        
+        batch_size = inputs.shape[0]
+        print("Batch size: ", batch_size)
+        # Set up perturbation for this batch
+        self._init_inbatch_properties()
+        
+        # Randomly decide which samples to perturb (all in this case)
+        self.perturbation_idices.extend(np.arange(batch_size).tolist())
+        
+        # All samples in batch will be perturbed
+        self.perturbation_idices_inbatch.extend(np.arange(batch_size).tolist())
+        
+        # Randomly choose layers to perturb for each sample
+        self.perturbation_layers.extend(
+            np.random.randint(0, len(self.perturbation_layers_names), batch_size).tolist()
+        )
+        # print("len(self.names)", len(self.perturbation_layers_names))
+        # print ("len(self.perturbation_layers): ", (self.perturbation_layers))
+        temp = perturb_p[self.perturbation_layers] * np.random.rand(batch_size)
+        # Randomly set perturbation factor for each sample
+        self.perturbation_factor = temp.tolist()
+
 class MemoryBuffer:
     """Memory buffer to store examples from previous tasks."""
     def __init__(self, max_size=2000):
@@ -95,21 +165,79 @@ class RehearsalCLIP(ClassIncremental):
         # Feature augmentation parameters
         self.perturb_factor = cfg.get('perturb_factor', 0.1)
         self.perturb_layers = cfg.get('perturb_layers', ['visual.transformer.resblocks'])
+        self.num_augmem = cfg.get('num_augmem', 1)
+        self.mrfa = MRFA_Augmentation()
+        
+        # Set up perturbation probabilities for different layers
+        # Default: equal probability for all layers
+        # self.perturb_p = np.array([0.2, 0.2, 0.2, 0.2, 0.2])
+        # create perturb_p with size = 40, each element is 0.2  
+        # 40 is the number of layers in the model
+        # self.perturb_p = np.array([0.0001] * 26500)
+        cur_perturb_p = cfg.get('perturb_p')
+        self.perturb_p = np.array([cur_perturb_p] * 26500)
+    
+        # self.perturb_p = np.array(cfg.get('perturb_p', [0.2, 0.2, 0.2, 0.2, 0.2]))
+        if hasattr(cfg, 'perturb_p'):
+            self.perturb_p = np.array(cfg.perturb_p)
 
     def feature_augmentation(self, images, targets):
         """Apply random feature augmentation to memory samples."""
-        # Simple implementation of feature augmentation
-        # In practice, this would be more sophisticated like MRFA
-        augmented_images = images.clone()
-        if self.augmentation_enabled:
-            # Add small random noise as a simple augmentation
-            noise = torch.randn_like(augmented_images) * self.perturb_factor
-            augmented_images = augmented_images + noise
+        if not self.augmentation_enabled:
+            return images, targets
             
-        return augmented_images, targets
+        # Register perturbation hooks if not already registered
+        if len(self.mrfa.remove_handles) == 0:
+            self.mrfa.register_perturb_forward_prehook(self.model, self.args.get('model_name', 'vitb32'))
+        
+        # Apply MRFA-style augmentation
+        with torch.no_grad():
+            # Forward pass to capture features
+            images = images.to(self.device)
+            self.mrfa.feature_augmentation(self.model, images, targets, 
+                                           self.args.get('model_name', 'vitb32'), 
+                                           self.perturb_p)
+            
+            # Add noise to features for augmentation
+            augmented_images = []
+            
+            # Create multiple augmented versions if requested
+            for _ in range(self.num_augmem):
+                # Clone original images
+                aug_imgs = images.clone()
+                
+                # Apply random noise based on captured features
+                for idx, layer_idx in enumerate(self.mrfa.perturbation_layers):
+                    if idx < len(self.mrfa.perturbation_idices_inbatch):
+                        sample_idx = self.mrfa.perturbation_idices_inbatch[idx]
+                        if sample_idx < aug_imgs.shape[0]:
+                            layer_name = self.mrfa.perturbation_layers_names[layer_idx]
+                            if layer_name in self.mrfa.features:
+                                # Get factor for this sample
+                                factor = self.mrfa.perturbation_factor[idx]
+                                
+                                # Add noise directly to the image based on feature statistics
+                                noise = torch.randn_like(aug_imgs[sample_idx]) * factor * self.perturb_factor
+                                aug_imgs[sample_idx] += noise
+                
+                augmented_images.append(aug_imgs)
+            
+            # Concatenate all augmented versions
+            if len(augmented_images) > 0:
+                augmented_images = torch.cat(augmented_images, dim=0)
+                targets = targets.repeat(self.num_augmem)
+        
+        # Clean up hooks after use
+        if len(self.mrfa.remove_handles) > 0:
+            for handle in self.mrfa.remove_handles:
+                handle.remove()
+            self.mrfa.remove_handles.clear()
+            
+        return augmented_images.cpu(), targets.cpu()
 
     def train(self, task_id, cfg, train_dataset, train_classes_names, old_fisher=None):
         self.task_seen = task_id
+        self.args = cfg  # Store cfg for use in feature_augmentation
         
         # Original train loader
         train_loader = DataLoader(
@@ -137,12 +265,12 @@ class RehearsalCLIP(ClassIncremental):
         if task_id > 0 and self.memory_buffer is not None:
             memory_images, memory_targets, memory_task_ids = self.memory_buffer.get_memory()
             if memory_images is not None and len(memory_images) > 0:
-                # Apply feature augmentation to memory samples
+                # Apply feature augmentation to memory samples using MRFA approach
                 augmented_images, memory_targets = self.feature_augmentation(memory_images, memory_targets)
                 
                 # Don't pass transforms as images are already tensors
                 memory_dataset = AugmentMemoryDataset(
-                    augmented_images, memory_targets, memory_task_ids, transforms=None
+                    augmented_images, memory_targets, memory_task_ids.repeat(self.num_augmem), transforms=None
                 )
                 memory_loader = DataLoader(
                     memory_dataset,
@@ -178,7 +306,7 @@ class RehearsalCLIP(ClassIncremental):
         
         # Start training with rehearsal
         self.model.train()
-        print("Training with rehearsal...")
+        print("Training with rehearsal using MRFA-style augmentation...")
         for iteration in tqdm(range(total_iterations + 1)):
             scheduler(iteration)
             
@@ -229,7 +357,7 @@ class RehearsalCLIP(ClassIncremental):
             
             # Combined loss
             if memory_loader is not None:
-                loss_main = loss_current + loss_memory
+                loss_main = (1-self.rehearsal_ratio) * loss_current + self.rehearsal_ratio*loss_memory
             else:
                 loss_main = loss_current
             
