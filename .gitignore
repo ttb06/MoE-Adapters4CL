@@ -5,3 +5,4 @@
 /cil/experiments/
 /cil/continual_clip/__pycache__/*
 **/__pycache__/*
+*/*/__pycache__/*
