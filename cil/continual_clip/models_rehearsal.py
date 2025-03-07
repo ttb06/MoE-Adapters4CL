@@ -357,7 +357,7 @@ class RehearsalCLIP(ClassIncremental):
             
             # Combined loss
             if memory_loader is not None:
-                loss_main = (1-self.rehearsal_ratio) * loss_current + self.rehearsal_ratio*loss_memory
+                loss_main = (1 - self.rehearsal_ratio) * loss_current + self.rehearsal_ratio * loss_memory
             else:
                 loss_main = loss_current
             
