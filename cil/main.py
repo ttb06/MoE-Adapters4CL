@@ -16,6 +16,8 @@ from continual_clip import utils
 from continual_clip.models import load_model
 from continual_clip.datasets import build_cl_scenarios
 
+from continual_clip.utils import seed_all
+seed_all(42)  # Chọn một số cố định
 
 @hydra.main(config_path=None, config_name=None, version_base="1.1") 
 def continual_clip(cfg: DictConfig) -> None:
@@ -45,18 +47,12 @@ def continual_clip(cfg: DictConfig) -> None:
     acc_list = []
     metric_logger = Logger(list_subsets=["test"])
 
-    old_fisher = None
     # test
     for task_id, _ in enumerate(eval_dataset):
         # breakpoint()
         logging.info(f"Evaluation for task {task_id} has started.")
         # breakpoint()
-        if (task_id > 0):
-            old_fisher = model.adaptation(task_id, cfg, train_dataset, train_classes_names, old_fisher)  # task id 已经传入(Already passed in)model
-        else:
-            old_fisher = model.adaptation(task_id, cfg, train_dataset, train_classes_names)
-        if (old_fisher is not None):
-            print('old_fisher in task', task_id,'is not None')
+        model.adaptation(task_id, cfg, train_dataset, train_classes_names)  # task id 已经传入(Already passed in)model
         eval_loader = DataLoader(eval_dataset[:task_id + 1], batch_size=64)
         # breakpoint()
         for inputs, targets, task_ids in tqdm(eval_loader):

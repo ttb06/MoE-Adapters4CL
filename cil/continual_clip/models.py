@@ -110,16 +110,6 @@ class ClassIncremental(nn.Module):
 
         texts = clip.tokenize(texts).to(self.device)
 
-        # method
-        # old_adapter_states = {}
-        # if (task_id > 0):
-        #     print("Đang lưu các tham số để update cho FIM...")
-        #     for name, param in self.model.named_parameters():
-        #         # Chỉ lưu các tham số có chứa "adaptmlp" (các adapter)
-        #         if "adaptmlp" in name:
-        #             old_adapter_states[name] = param.data.clone()
-
-
         # start training
         self.model.train()
         print("Training...")
@@ -150,84 +140,7 @@ class ClassIncremental(nn.Module):
             optimizer.zero_grad()
             loss_main.backward()
             optimizer.step()
-
-        # # --------------- Fisher-based Update ---------------
-        # # Get Fisher information matrix
-        # fisher_current = {}
-        # adapter_keyword = "adaptmlp" 
-        # # model.train()
-        # num_fisher_batches = 0
-        # cnt = 0
-        # for iteration in tqdm(range(total_iterations + 1)):
-        #     scheduler(iteration)
-        #     try:
-        #         inputs, targets, task_ids = next(train_iter)
-        #     except:
-        #         train_iter = iter(train_loader)
-        #         inputs, targets, task_ids = next(train_iter)
-
-        #     if cfg.dataset == "tinyimagenet" and task_id != 0:
-        #         shift = 100 + (task_id - 1) * cfg.increment
-        #         targets -= shift
-        #     elif cfg.dataset == "imagenet100" and task_id != 0:
-        #         shift = cfg.initial_increment + (task_id - 1) * cfg.increment
-        #         targets -= shift
-        #     else:
-        #         shift = task_id * cfg.increment
-        #         targets -= shift
-
-        #     inputs, targets = inputs.cuda(), targets.cuda()
-
-        #     logits_per_image, _ = self.model(inputs, texts, 0, is_train=True)  # 分开
-        #     # -- cross entropy loss --
-        #     loss = F.cross_entropy(logits_per_image, targets, label_smoothing=cfg.ls)
-        #     optimizer.zero_grad()
-        #     loss.backward()
-        
-        #     for name, param in self.model.named_parameters():
-        #         if adapter_keyword in name and param.grad is not None:
-        #             if name not in fisher_current:
-        #                 cnt += 1
-        #                 fisher_current[name] = torch.zeros_like(param.data)
-        #             fisher_current[name] += param.grad.pow(2).detach()
-        #     num_fisher_batches += 1
-
-        # for name in fisher_current:
-        #     fisher_current[name] /= num_fisher_batches
-        #     fisher_current[name] = torch.clamp(fisher_current[name], max=0.0001)
-        # # ------------------ Kết thúc tính FIM cho task hiện tại ------------------
-        
-        # # ------------------ Cập nhật trọng số adapter bằng công thức Fisher-weighted ------------------
-        # if (task_id > 0):
-        #     print("-------- Updating CoFiMA with task:", task_id, "--------")
-        #     lambda_val = 0.8
-        #     cnt = 0
-        #     for name, param in self.model.named_parameters():
-        #         if adapter_keyword in name and param.grad is not None:
-        #             # check if old_adapter_states or fisher_current or old_fisher are None
-        #             if (old_adapter_states is None):
-        #                 print("old_adapter_states is None")
-        #             if (fisher_current is None):
-        #                 print("fisher_current is None")
-        #             if (old_fisher is None):
-        #                 print("old_fisher is None")
-
-        #             if name in old_adapter_states and name in fisher_current and name in old_fisher:
-        #                 cnt += 1
-        #                 theta_old = old_adapter_states[name]         # θ₍ₜ₋₁₎
-        #                 theta_new = param.data                         # θₜ
-        #                 F_new = fisher_current[name]                   # Fₜ
-        #                 F_old = old_fisher[name]                   # F₍ₜ₋₁₎
-        #                 updated = (lambda_val * F_new * theta_new + (1 - lambda_val) * F_old * theta_old) \
-        #                         / (lambda_val * F_new + (1 - lambda_val) * F_old + 1e-8)
-        #                 param.data.copy_(updated)
-        #                 # print("-------- FIM Updated --------")
-
-        #     print(cnt, "params updated with CoFiMA.")
-
         self.model.eval()
-        # return fisher_current
-        return None
 
 
 class DomainIncremental(nn.Module):
@@ -251,9 +164,9 @@ def load_model(cfg: DictConfig, device: torch.device) -> nn.Module:
     if cfg.scenario == "class":
         if cfg.get('use_rehearsal', False):
             # Import here to avoid circular import
-            from .models_rehearsal import RehearsalCLIP
+            from .models_rehearsal import ClassIncremental_aug
             print("Using RehearsalCLIP")
-            return RehearsalCLIP(cfg, device)
+            return ClassIncremental_aug(cfg, device)
         else:
             print("Using ClassIncremental")
             return ClassIncremental(cfg, device)
