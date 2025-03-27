@@ -140,13 +140,22 @@ class MRFA:
                 num_new_axes = len(self.perturbations[layer_id].size()) - 1
                 if self.with_input_norm:
                     norm_val = inp0.data[p_idices_inbatch[p_index]].view(len(p_index), -1).norm(dim=-1) ** 2
-                    perturb = norm_val[:, *(None,)*num_new_axes] * self.perturbations[layer_id][p_idices[p_index]] * \
-                              torch.from_numpy(p_factor[p_index]).float()[:, *(None,)*num_new_axes].to(inp0.device)
+                    # Thêm các chiều mới vào norm_val bằng cách dùng unsqueeze trong vòng lặp
+                    for _ in range(num_new_axes):
+                        norm_val = norm_val.unsqueeze(-1)
+                    # Chuyển p_factor thành tensor và thêm các chiều mới tương tự
+                    factor_tensor = torch.from_numpy(p_factor[p_index]).float()
+                    for _ in range(num_new_axes):
+                        factor_tensor = factor_tensor.unsqueeze(-1)
+                    perturb = norm_val * self.perturbations[layer_id][p_idices[p_index]] * factor_tensor.to(inp0.device)
                 else:
-                    perturb = self.perturbations[layer_id][p_idices[p_index]] * \
-                              torch.from_numpy(p_factor[p_index]).float()[:, *(None,)*num_new_axes].to(inp0.device)
+                    factor_tensor = torch.from_numpy(p_factor[p_index]).float()
+                    for _ in range(num_new_axes):
+                        factor_tensor = factor_tensor.unsqueeze(-1)
+                    perturb = self.perturbations[layer_id][p_idices[p_index]] * factor_tensor.to(inp0.device)
                 inp0[p_idices_inbatch[p_index]] += perturb
                 return (inp0,)
+
 
         hooks = [partial(perturb_input_prehook_full, layer_id=i) for i in range(num_layers)]
         self.remove_handles.extend(register_func(model, visual_encoder, hooks))
